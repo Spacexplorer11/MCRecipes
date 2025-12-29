@@ -3,9 +3,9 @@ package singh.akaalroop
 import io.github.cdimascio.dotenv.dotenv
 import com.slack.api.bolt.App
 import com.slack.api.bolt.AppConfig
-import com.slack.api.bolt.response.Response
 import com.slack.api.bolt.socket_mode.SocketModeApp
-import kotlin.text.get
+import com.slack.api.model.event.MessageEvent
+
 
 fun main() {
     val dotenv = dotenv()
@@ -21,17 +21,9 @@ fun main() {
 
     val app = App(config)
 
-    app.message("Hello") { payload, ctx ->
-        val event = payload.event
-
-        ctx.say("I exist!!")
-
-        ctx.ack()
+    app.event(MessageEvent::class.java) { payload, ctx ->
+        ctx.ack();
     }
-
-    app.event(MessageEvent.class, (payload, ctx) -> {
-      return ctx.ack();
-   });
 
 
     val socketModeApp = SocketModeApp(appToken, app)
