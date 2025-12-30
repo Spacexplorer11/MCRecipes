@@ -5,8 +5,52 @@ import com.slack.api.bolt.App
 import com.slack.api.bolt.AppConfig
 import com.slack.api.bolt.socket_mode.SocketModeApp
 import com.slack.api.model.event.AppMentionEvent
+import com.slack.api.model.event.MessageChangedEvent
+import com.slack.api.model.event.MessageDeletedEvent
 import com.slack.api.model.event.MessageEvent
 import java.io.File
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
+import org.json.JSONObject
+
+fun sendAIRequest(apiKey: String, item: String, items: List<String>): String? {
+    val client = OkHttpClient()
+    val url = "https://ai.hackclub.com/proxy/v1/chat/completions"
+    val mediaType = "application/json; charset=utf-8".toMediaType()
+
+    val jsonBody = JSONObject().apply {
+        put("model", "google/gemini-2.5-flash-lite-preview-09-2025")
+        val messages = JSONArray().apply {
+            put(JSONObject().apply {
+                put("role", "user")
+                put("content", "The user has asked for a minecraft of recipe of $item but it couldn't be found. Please do not mix recipes such as iron block and block of raw iron are completely different. Use your knowledge of minecraft for this task. Please check for typos and synonyms and if could be found in this list: [$items] ONLY RETURN THE CORRECT ITEM FROM THE LIST EXACTLY, IF NOT AVAILABLE RETURN NOTHING")
+            })
+        }
+        put("messages", messages)
+    }
+
+    val request = Request.Builder()
+        .url(url)
+        .addHeader("Authorization", "Bearer $apiKey")
+        .addHeader("Content-Type", "application/json")
+        .post(jsonBody.toString().toRequestBody(mediaType))
+        .build()
+
+    client.newCall(request).execute().use { response ->
+        if (!response.isSuccessful) return "Error: ${response.code}"
+
+        val responseData = response.body?.string() ?: return null
+        val jsonResponse = JSONObject(responseData)
+
+        return jsonResponse.getJSONArray("choices")
+            .getJSONObject(0)
+            .getJSONObject("message")
+            .getString("content")
+    }
+}
 
 fun main() {
     val dotenv = dotenv()
@@ -14,6 +58,7 @@ fun main() {
     val botToken = dotenv["SLACK_BOT_TOKEN"]
     val appToken = dotenv["SLACK_APP_TOKEN"]
     val signingSecret = dotenv["SLACK_SIGNING_SECRET"]
+    val apiKey = dotenv["API_KEY"]
 
     val items = listOf(
         "Acacia Boat",
@@ -590,6 +635,14 @@ fun main() {
         ctx.ack()
     }
 
+    app.event(MessageChangedEvent::class.java) { payload, ctx ->
+        ctx.ack()
+    }
+
+    app.event(MessageDeletedEvent::class.java) { payload, ctx ->
+        ctx.ack()
+    }
+
     app.event(AppMentionEvent::class.java) { payload, ctx ->
         val event = payload.event
         ctx.logger.info("Received a mention in channel ${event.channel} from ${event.user}")
@@ -620,18 +673,42 @@ fun main() {
                     .filename(fileName)
                     .threadTs(event.ts)
             }
-        }
-        else {
+        } else {
             ctx.client().chatPostMessage {
                 it.channel(event.channel)
-                    .text("Couldn't find the recipe :(")
+                    .text("Couldn't find the recipe in my database. Asking AI if there are any typos")
                     .threadTs(event.ts)
+            }
+            var response = sendAIRequest(apiKey, processedText, items)
+            ctx.logger.info("AI responded with $response")
+            response = response?.replace("Of", "of")
+            response = response?.replace("And", "and")
+            if (response in items) {
+                ctx.logger.info("After AI usage, $processedText was turned into $response which was found in the items list!")
+                ctx.client().chatPostMessage {
+                    it.channel(event.channel)
+                        .text("The recipe is:")
+                        .threadTs(event.ts)
+                }
+                val index = items.indexOf(response)
+                val fileName = items[index].replace(" ".toRegex(), "_")
+                val file = File("recipe_images/$fileName.png")
+                app.client.filesUploadV2 { builder ->
+                    builder.channel(event.channel)
+                        .file(file)
+                        .filename(fileName)
+                        .threadTs(event.ts)
+                }
+            } else {
+                ctx.client().chatPostMessage {
+                    it.channel(event.channel)
+                        .text("Even after using AI I couldn't find the recipe you're looking for. If it is a truly valid recipe, please search google. I am sorry. I am pinging my maker <@U08D22QNUVD> to notify him.")
+                        .threadTs(event.ts)
+                }
             }
         }
         ctx.ack()
     }
-
-
     val socketModeApp = SocketModeApp(appToken, app)
     socketModeApp.start()
 }

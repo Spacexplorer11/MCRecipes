@@ -18,6 +18,8 @@ dependencies {
     implementation("javax.websocket:javax.websocket-api:1.1")
     implementation("org.glassfish.tyrus.bundles:tyrus-standalone-client:1.20")
     implementation("org.slf4j:slf4j-simple:1.7.36")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("org.json:json:20231013")
 }
 
 kotlin {
