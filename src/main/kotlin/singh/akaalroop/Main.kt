@@ -91,7 +91,6 @@ fun main() {
         "Block of Diamond",
         "Block of Emerald",
         "Block of Gold",
-        "Block of Iron",
         "Block of Lapis Lazuli",
         "Block of Netherite",
         "Block of Raw Copper",
@@ -294,6 +293,7 @@ fun main() {
         "Hopper",
         "Iron Axe",
         "Iron Bars",
+        "Iron Block",
         "Iron Boots",
         "Iron Chestplate",
         "Iron Door",
@@ -365,7 +365,6 @@ fun main() {
         "Magenta Stained Glass Pane",
         "Magenta Terracotta",
         "Magenta Wool",
-        "Map",
         "Melon",
         "Minecart",
         "Moss Block",
@@ -565,6 +564,7 @@ fun main() {
         "Wooden Pickaxe",
         "Wooden Shovel",
         "Wooden Sword",
+        "Woodland Explorer Map",
         "Yellow Banner",
         "Yellow Bed",
         "Yellow Candle",
@@ -596,9 +596,21 @@ fun main() {
         ctx.logger.info("Received text is: ${event.text}")
         var processedText = event.text.replace("<@U0A5X0FV9V4>", "")
         processedText = processedText.removePrefix(" ")
+        processedText = processedText.removeSuffix(" ")
+        processedText = processedText.lowercase()
+        processedText = processedText.split(" ").joinToString(" ") { word ->
+            word.replaceFirstChar { if (it.isLowerCase()) it.uppercase() else it.toString() }
+        }
+        processedText = processedText.replace("Of", "of")
+        processedText = processedText.replace("And", "and")
         ctx.logger.info("The text after processing is: $processedText")
         if (processedText in items) {
             ctx.logger.info("$processedText was found in the items list!")
+            ctx.client().chatPostMessage {
+                it.channel(event.channel)
+                    .text("The recipe is:")
+                    .threadTs(event.ts)
+            }
             val index = items.indexOf(processedText)
             val fileName = items[index].replace(" ".toRegex(), "_")
             val file = File("recipe_images/$fileName.png")
@@ -606,6 +618,14 @@ fun main() {
                 builder.channel(event.channel)
                     .file(file)
                     .filename(fileName)
+                    .threadTs(event.ts)
+            }
+        }
+        else {
+            ctx.client().chatPostMessage {
+                it.channel(event.channel)
+                    .text("Couldn't find the recipe :(")
+                    .threadTs(event.ts)
             }
         }
         ctx.ack()
