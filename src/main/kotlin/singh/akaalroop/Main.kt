@@ -22,6 +22,8 @@ fun main() {
 
     val app = App(config)
 
+
+
     app.event(MessageEvent::class.java) { payload, ctx ->
         ctx.ack()
     }
@@ -29,7 +31,6 @@ fun main() {
     app.event(AppMentionEvent::class.java) { payload, ctx ->
         val event = payload.event
 
-        ctx.say("Hi there <@${event.user}>")
         ctx.ack()
     }
 
