@@ -645,70 +645,70 @@ fun main() {
 
     app.event(AppMentionEvent::class.java) { payload, ctx ->
         val event = payload.event
-        ctx.logger.info("Received a mention in channel ${event.channel} from ${event.user}")
-        ctx.logger.info("Received text is: ${event.text}")
-        var processedText = event.text.replace("<@U0A5X0FV9V4>", "")
-        processedText = processedText.removePrefix(" ")
-        processedText = processedText.removeSuffix(" ")
-        processedText = processedText.lowercase()
-        processedText = processedText.split(" ").joinToString(" ") { word ->
-            word.replaceFirstChar { if (it.isLowerCase()) it.uppercase() else it.toString() }
+        val replies = ctx.client().conversationsReplies { it
+            .channel(event.channel)
+            .ts(event.threadTs)
         }
-        processedText = processedText.replace("Of", "of")
-        processedText = processedText.replace("And", "and")
-        ctx.logger.info("The text after processing is: $processedText")
-        if (processedText in items) {
-            ctx.logger.info("$processedText was found in the items list!")
-            ctx.client().chatPostMessage {
-                it.channel(event.channel)
-                    .text("The recipe is:")
-                    .threadTs(event.ts)
-            }
-            val index = items.indexOf(processedText)
-            val fileName = items[index].replace(" ".toRegex(), "_")
-            val file = File("recipe_images/$fileName.png")
-            app.client.filesUploadV2 { builder ->
-                builder.channel(event.channel)
-                    .file(file)
-                    .filename(fileName)
-                    .threadTs(event.ts)
-            }
-        } else {
-            ctx.client().chatPostMessage {
-                it.channel(event.channel)
-                    .text("Couldn't find the recipe in my database. Asking AI if there are any typos")
-                    .threadTs(event.ts)
-            }
-            var response = sendAIRequest(apiKey, processedText, items)
-            ctx.logger.info("AI responded with $response")
-            response = response?.replace("Of", "of")
-            response = response?.replace("And", "and")
-            if (response in items) {
-                ctx.logger.info("After AI usage, $processedText was turned into $response which was found in the items list!")
-                ctx.client().chatPostMessage {
-                    it.channel(event.channel)
-                        .text("The recipe is:")
-                        .threadTs(event.ts)
-                }
-                val index = items.indexOf(response)
-                val fileName = items[index].replace(" ".toRegex(), "_")
-                val file = File("recipe_images/$fileName.png")
-                app.client.filesUploadV2 { builder ->
-                    builder.channel(event.channel)
-                        .file(file)
-                        .filename(fileName)
-                        .threadTs(event.ts)
-                }
+        if (replies.isOk) {
+            ctx.ack()
             } else {
-                ctx.client().chatPostMessage {
-                    it.channel(event.channel)
-                        .text("Even after using AI I couldn't find the recipe you're looking for. If it is a truly valid recipe, please search google. I am sorry. I am pinging my maker <@U08D22QNUVD> to notify him.")
-                        .threadTs(event.ts)
+                ctx.logger.info("Received a mention in channel ${event.channel} from ${event.user}")
+                ctx.logger.info("Received text is: ${event.text}")
+                var processedText = event.text.replace("<@U0A5X0FV9V4>", "")
+                processedText = processedText.removePrefix(" ")
+                processedText = processedText.removeSuffix(" ")
+                processedText = processedText.lowercase()
+                processedText = processedText.split(" ").joinToString(" ") { word ->
+                    word.replaceFirstChar { if (it.isLowerCase()) it.uppercase() else it.toString() }
+                }
+                processedText = processedText.replace("Of", "of")
+                processedText = processedText.replace("And", "and")
+                ctx.logger.info("The text after processing is: $processedText")
+                if (processedText in items) {
+                    ctx.logger.info("$processedText was found in the items list!")
+                    val index = items.indexOf(processedText)
+                    val fileName = items[index].replace(" ".toRegex(), "_")
+                    val file = File("recipe_images/$fileName.png")
+                    app.client.filesUploadV2 { builder ->
+                        builder.channel(event.channel)
+                            .file(file)
+                            .filename(fileName)
+                            .threadTs(event.ts)
+                            .initialComment("The recipe is:")
+                    }
+                } else {
+                    ctx.client().chatPostMessage {
+                        it.channel(event.channel)
+                            .text("Couldn't find the recipe in my database. Asking AI if there are any typos")
+                            .threadTs(event.ts)
+                    }
+                    var response = sendAIRequest(apiKey, processedText, items)
+                    ctx.logger.info("AI responded with $response")
+                    response = response?.replace("Of", "of")
+                    response = response?.replace("And", "and")
+                    if (response in items) {
+                        ctx.logger.info("After AI usage, $processedText was turned into $response which was found in the items list!")
+                        val index = items.indexOf(response)
+                        val fileName = items[index].replace(" ".toRegex(), "_")
+                        val file = File("recipe_images/$fileName.png")
+                        app.client.filesUploadV2 { builder ->
+                            builder.channel(event.channel)
+                                .file(file)
+                                .filename(fileName)
+                                .threadTs(event.ts)
+                                .initialComment("The recipe is:")
+                        }
+                    } else {
+                        ctx.client().chatPostMessage {
+                            it.channel(event.channel)
+                                .text("Even after using AI I couldn't find the recipe you're looking for. If it is a truly valid recipe, please search google. I am sorry. I am pinging my maker <@U08D22QNUVD> to notify him.")
+                                .threadTs(event.ts)
+                        }
+                    }
                 }
             }
-        }
         ctx.ack()
-    }
+        }
     val socketModeApp = SocketModeApp(appToken, app)
     socketModeApp.start()
 }
