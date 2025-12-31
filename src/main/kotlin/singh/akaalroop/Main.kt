@@ -112,6 +112,10 @@ fun getRecipe(item: String): File {
         "$formatted.png"
     }
 
+    val formattedItem = item.split(" ").joinToString(" ") { word ->
+        word.replaceFirstChar { if (it.isLowerCase()) it.uppercase() else it.toString() }
+    }
+
     var recipe = JSONObject();
 
     val jsonString: String = File("data/recipes.json").readText()
@@ -119,7 +123,7 @@ fun getRecipe(item: String): File {
 
     for (i in 0 until jsonArray.length()) {
         val obj = jsonArray.getJSONObject(i)
-        if (obj.getString("item") == item) {
+        if (obj.getString("item") == formattedItem) {
             recipe = obj
             break
         }
@@ -130,7 +134,7 @@ fun getRecipe(item: String): File {
         ingredient?.let { convert(it) }
     }
 
-    return buildImage(convert(item), recipeItems)
+    return buildImage(convert(formattedItem), recipeItems)
 }
 
 fun main() {
