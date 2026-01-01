@@ -130,9 +130,19 @@ fun getRecipe(item: String): File {
     }
 
     val recipeItems: List<String?> = List(recipe.getJSONArray("recipe").length()) { index ->
-        val ingredient = recipe.getJSONArray("recipe").optString(index, null)
-        ingredient?.let { convert(it) }
+        when (val item = recipe.getJSONArray("recipe").opt(index)){
+            is String? -> {
+                convert(item)
+            }
+
+            is JSONArray -> {
+                item.optString(0, null)?.let { convert(it) }
+            }
+            else -> null
+        }
     }
+
+    print(recipeItems)
 
     return buildImage(convert(formattedItem), recipeItems)
 }
@@ -176,22 +186,44 @@ fun main() {
         }
         if (replies.isOk) {
             ctx.ack()
-            } else {
-                ctx.logger.info("Received a mention in channel ${event.channel} from ${event.user}")
-                ctx.logger.info("Received text is: ${event.text}")
-                var processedText = event.text.replace("<@U0A5X0FV9V4>", "")
-                processedText = processedText.removePrefix(" ")
-                processedText = processedText.removeSuffix(" ")
-                processedText = processedText.lowercase()
-                processedText = processedText.split(" ").joinToString(" ") { word ->
-                    word.replaceFirstChar { if (it.isLowerCase()) it.uppercase() else it.toString() }
+        } else {
+            ctx.logger.info("Received a mention in channel ${event.channel} from ${event.user}")
+            ctx.logger.info("Received text is: ${event.text}")
+            var processedText = event.text.replace("<@U0A5X0FV9V4>", "")
+            processedText = processedText.removePrefix(" ")
+            processedText = processedText.removeSuffix(" ")
+            processedText = processedText.lowercase()
+            processedText = processedText.split(" ").joinToString(" ") { word ->
+                word.replaceFirstChar { if (it.isLowerCase()) it.uppercase() else it.toString() }
+            }
+            processedText = processedText.replace("Of", "of")
+            processedText = processedText.replace("And", "and")
+            ctx.logger.info("The text after processing is: $processedText")
+            if (processedText in items) {
+                ctx.logger.info("$processedText was found in the items list!")
+                val index = items.indexOf(processedText)
+                val fileName = items[index]
+                val file = getRecipe(fileName)
+                app.client.filesUploadV2 { builder ->
+                    builder.channel(event.channel)
+                        .file(file)
+                        .filename(fileName.replace(" ".toRegex(), "_"))
+                        .threadTs(event.ts)
+                        .initialComment("The recipe is:")
                 }
-                processedText = processedText.replace("Of", "of")
-                processedText = processedText.replace("And", "and")
-                ctx.logger.info("The text after processing is: $processedText")
-                if (processedText in items) {
-                    ctx.logger.info("$processedText was found in the items list!")
-                    val index = items.indexOf(processedText)
+            } else {
+                ctx.client().chatPostMessage {
+                    it.channel(event.channel)
+                        .text("Couldn't find the recipe in my database. Asking AI if there are any typos")
+                        .threadTs(event.ts)
+                }
+                var response = sendAIRequest(apiKey, processedText, items)
+                ctx.logger.info("AI responded with $response")
+                response = response?.replace("Of", "of")
+                response = response?.replace("And", "and")
+                if (response in items) {
+                    ctx.logger.info("After AI usage, $processedText was turned into $response which was found in the items list!")
+                    val index = items.indexOf(response)
                     val fileName = items[index]
                     val file = getRecipe(fileName)
                     app.client.filesUploadV2 { builder ->
@@ -204,36 +236,14 @@ fun main() {
                 } else {
                     ctx.client().chatPostMessage {
                         it.channel(event.channel)
-                            .text("Couldn't find the recipe in my database. Asking AI if there are any typos")
+                            .text("Even after using AI I couldn't find the recipe you're looking for. If it is a truly valid recipe, please search google. I am sorry. I am pinging my maker <@U08D22QNUVD> to notify him.")
                             .threadTs(event.ts)
-                    }
-                    var response = sendAIRequest(apiKey, processedText, items)
-                    ctx.logger.info("AI responded with $response")
-                    response = response?.replace("Of", "of")
-                    response = response?.replace("And", "and")
-                    if (response in items) {
-                        ctx.logger.info("After AI usage, $processedText was turned into $response which was found in the items list!")
-                        val index = items.indexOf(response)
-                        val fileName = items[index]
-                        val file = getRecipe(fileName)
-                        app.client.filesUploadV2 { builder ->
-                            builder.channel(event.channel)
-                                .file(file)
-                                .filename(fileName.replace(" ".toRegex(), "_"))
-                                .threadTs(event.ts)
-                                .initialComment("The recipe is:")
-                        }
-                    } else {
-                        ctx.client().chatPostMessage {
-                            it.channel(event.channel)
-                                .text("Even after using AI I couldn't find the recipe you're looking for. If it is a truly valid recipe, please search google. I am sorry. I am pinging my maker <@U08D22QNUVD> to notify him.")
-                                .threadTs(event.ts)
-                        }
                     }
                 }
             }
-        ctx.ack()
         }
+        ctx.ack()
+    }
     val socketModeApp = SocketModeApp(appToken, app)
     socketModeApp.start()
 }
