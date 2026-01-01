@@ -11,7 +11,6 @@ repositories {
 }
 
 dependencies {
-    implementation(platform("org.jetbrains.kotlin:kotlin-bom"))
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
     implementation("com.slack.api:bolt-socket-mode:1.45.3")
     implementation("io.github.cdimascio:dotenv-kotlin:6.4.1")
