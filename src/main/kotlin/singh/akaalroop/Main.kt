@@ -26,7 +26,7 @@ fun sendAIRequest(apiKey: String, item: String, items: List<String>): String? {
         val messages = JSONArray().apply {
             put(JSONObject().apply {
                 put("role", "user")
-                put("content", "The user has asked for a minecraft of recipe of $item but it couldn't be found. Please do not mix recipes such as iron block and block of raw iron are completely different. Use your knowledge of minecraft for this task. Please check for typos and synonyms and if could be found in this list: [$items] ONLY RETURN THE CORRECT ITEM FROM THE LIST EXACTLY, IF NOT AVAILABLE RETURN NOTHING")
+                put("content", "The user has asked for a minecraft recipe of $item but it couldn't be in ghe lost provided. Please do not mix recipes such as iron block and block of raw iron are completely different. Use your knowledge of minecraft for this task. If the request is ambiguous like 'bed' then return the white variant from the list provided. Please check for typos and synonyms and if could be found in this list: [$items] ONLY RETURN THE CORRECT ITEM FROM THE LIST EXACTLY, IF NOT AVAILABLE RETURN NOTHING")
             })
         }
         put("messages", messages)
