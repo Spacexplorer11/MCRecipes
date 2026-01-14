@@ -286,6 +286,7 @@ fun main() {
         "Emerald",
         "Empty Map",
         "Enchanting Table",
+        "End Crystal",
         "End Rod",
         "End Stone Brick Slab",
         "End Stone Brick Stairs",
