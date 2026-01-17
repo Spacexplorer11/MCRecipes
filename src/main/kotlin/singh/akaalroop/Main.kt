@@ -743,7 +743,7 @@ fun main() {
         ctx.ack()
         }
 
-    app.command("/list") { payload, ctx ->
+    app.command("/list-recipes") { payload, ctx ->
         ctx.logger.info("Item list requested")
         app.client.filesUploadV2 { builder ->
             builder.channel(ctx.channelId)
