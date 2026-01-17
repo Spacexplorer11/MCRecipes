@@ -649,6 +649,13 @@ fun main() {
         "Yellow Wool"
     )
 
+    val recipeFileName = "Available_Recipes"
+    val recipeFile = File.createTempFile(recipeFileName, ".txt")
+    var i = 1
+    for (item in items) {
+        recipeFile.appendText("${i}. $item \n")
+        i += 1
+    }
 
     val config = AppConfig.builder()
         .singleTeamBotToken(botToken)
@@ -735,6 +742,17 @@ fun main() {
             }
         ctx.ack()
         }
+
+    app.command("/list") { payload, ctx ->
+        ctx.logger.info("Item list requested")
+        app.client.filesUploadV2 { builder ->
+            builder.channel(ctx.channelId)
+                .file(recipeFile)
+                .filename(recipeFileName)
+                .initialComment("All available recipes are in the list provided!")
+        }
+        ctx.ack()
+    }
     val socketModeApp = SocketModeApp(appToken, app)
     socketModeApp.start()
 }
