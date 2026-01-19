@@ -229,6 +229,7 @@ fun main() {
         "Copper Door",
         "Copper Ingot",
         "Copper Trapdoor",
+        "Crafter",
         "Crafting Table",
         "Crimson Button",
         "Crimson Door",
