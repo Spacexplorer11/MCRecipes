@@ -564,7 +564,6 @@ fun main() {
         "Shulker Box",
         "Smithing Table",
         "Smoker",
-        "Smooth Basalt",
         "Smooth Quartz",
         "Smooth Quartz Slab",
         "Smooth Quartz Stairs",
