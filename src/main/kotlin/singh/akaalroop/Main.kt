@@ -26,7 +26,19 @@ fun sendAIRequest(apiKey: String, item: String, items: List<String>): String? {
         val messages = JSONArray().apply {
             put(JSONObject().apply {
                 put("role", "user")
-                put("content", "The user has asked for a minecraft recipe of $item but it couldn't be in ghe lost provided. Please do not mix recipes such as iron block and block of raw iron are completely different. Use your knowledge of minecraft for this task. If the request is ambiguous like 'bed' then return the white variant from the list provided. Please check for typos and synonyms and if could be found in this list: [$items] ONLY RETURN THE CORRECT ITEM FROM THE LIST EXACTLY, IF NOT AVAILABLE RETURN NOTHING")
+                put("content", """
+                    You are a Minecraft crafting assistant. Your task is to match a user-requested item to the provided list: [$items].
+                    Matching Rules:
+                    	1.	Strict Identity: Distinguish between distinct items (e.g., "Iron Block" vs. "Block of Raw Iron" are not the same).
+                        2.	Ambiguity Resolution: If a generic item is requested (e.g., "Bed"), select the White variant (e.g., "White Bed"). 
+                        3.	Normalization: Correct typos, synonyms, and regional spellings (e.g., "Armour" to "Armor") to match the list's naming convention. 
+                        4.	Expert Knowledge: Use internal Minecraft knowledge to map colloquial terms to the specific list entry.
+                    Output Constraint:
+                    	•	If a match is found, return ONLY the exact item name from the list.	
+                        •	If no match exists, return nothing (an empty string).
+                        •	Do not include explanations, formatting, or conversational text.
+                    User Request: $item
+                """.trimIndent())
             })
         }
         put("messages", messages)
@@ -179,7 +191,9 @@ fun main() {
         "Brown Terracotta",
         "Brown Wool",
         "Bucket",
+        "Bundle",
         "Buried Treasure Map",
+        "Calibrated Sculk Sensor",
         "Cake",
         "Campfire",
         "Candle",
@@ -202,7 +216,7 @@ fun main() {
         "Clay",
         "Coal",
         "Coarse Dirt",
-        "Cobbled Deepslate Slab",
+        "Cobbled Deepslate Slabs",
         "Cobbled Deepslate Stairs",
         "Cobbled Deepslate Wall",
         "Cobblestone Slab",
@@ -211,7 +225,11 @@ fun main() {
         "Composter",
         "Conduit",
         "Cookie",
+        "Copper Bulb",
+        "Copper Door",
         "Copper Ingot",
+        "Copper Trapdoor",
+        "Crafter",
         "Crafting Table",
         "Crimson Button",
         "Crimson Door",
@@ -259,10 +277,13 @@ fun main() {
         "Dark Prismarine Slab",
         "Dark Prismarine Stairs",
         "Daylight Detector",
-        "Deepslate Brick Slab",
+        "Deepslate Brick Slabs",
         "Deepslate Brick Stairs",
         "Deepslate Brick Wall",
         "Deepslate Bricks",
+        "Deepslate Tiles",
+        "Deepslate Tile Slabs",
+        "Deepslate Tile Stairs",
         "Detector Rail",
         "Diamond",
         "Diamond Axe",
@@ -286,6 +307,7 @@ fun main() {
         "Emerald",
         "Empty Map",
         "Enchanting Table",
+        "End Crystal",
         "End Rod",
         "End Stone Brick Slab",
         "End Stone Brick Stairs",
@@ -331,6 +353,7 @@ fun main() {
         "Grindstone",
         "Gunpowder",
         "Hanging Roots",
+        "Harness",
         "Hay Bale",
         "Heavy Weighted Pressure Plate",
         "Honey Block",
@@ -399,6 +422,7 @@ fun main() {
         "Lime Wool",
         "Lodestone",
         "Loom",
+        "Mace",
         "Magenta Banner",
         "Magenta Bed",
         "Magenta Candle",
@@ -425,7 +449,6 @@ fun main() {
         "Mud Bricks",
         "Mud Brick Slab",
         "Mud Brick Stairs",
-        "Mud Brick Wall",
         "Nether Brick Fence",
         "Nether Brick Slab",
         "Nether Brick Stairs",
@@ -488,7 +511,7 @@ fun main() {
         "Polished Blackstone Stairs",
         "Polished Blackstone Wall",
         "Polished Deepslate",
-        "Polished Deepslate Slab",
+        "Polished Deepslate Slabs",
         "Polished Deepslate Stairs",
         "Polished Deepslate Wall",
         "Polished Diorite",
@@ -515,6 +538,7 @@ fun main() {
         "Quartz Slab",
         "Quartz Stairs",
         "Rail",
+        "Recovery Compass",
         "Red Banner",
         "Red Bed",
         "Red Candle",
@@ -540,7 +564,6 @@ fun main() {
         "Shulker Box",
         "Smithing Table",
         "Smoker",
-        "Smooth Basalt",
         "Smooth Quartz",
         "Smooth Quartz Slab",
         "Smooth Quartz Stairs",
@@ -565,6 +588,8 @@ fun main() {
         "Spruce Stairs",
         "Spruce Trapdoor",
         "Spruce Wood",
+        "Spyglass",
+        "Sticks",
         "Sticky Piston",
         "Stone Axe",
         "Stone Brick Slab",
@@ -604,6 +629,7 @@ fun main() {
         "White Stained Glass Pane",
         "White Terracotta",
         "White Wool",
+        "Wolf Armor",
         "Wooden Axe",
         "Wooden Hoe",
         "Wooden Pickaxe",
@@ -623,6 +649,13 @@ fun main() {
         "Yellow Wool"
     )
 
+    val recipeFileName = "Available_Recipes"
+    val recipeFile = File.createTempFile(recipeFileName, ".txt")
+    var i = 1
+    for (item in items) {
+        recipeFile.appendText("${i}. $item \n")
+        i += 1
+    }
 
     val config = AppConfig.builder()
         .singleTeamBotToken(botToken)
@@ -709,6 +742,17 @@ fun main() {
             }
         ctx.ack()
         }
+
+    app.command("/list-recipes") { payload, ctx ->
+        ctx.logger.info("Item list requested")
+        app.client.filesUploadV2 { builder ->
+            builder.channel(ctx.channelId)
+                .file(recipeFile)
+                .filename(recipeFileName)
+                .initialComment("All available recipes are in the list provided!")
+        }
+        ctx.ack()
+    }
     val socketModeApp = SocketModeApp(appToken, app)
     socketModeApp.start()
 }
