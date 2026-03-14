@@ -27,17 +27,19 @@ fun sendAIRequest(apiKey: String, item: String, items: List<String>): String? {
             put(JSONObject().apply {
                 put("role", "user")
                 put("content", """
-                    You are a Minecraft crafting assistant. Your task is to match a user-requested item to the provided list: [$items].
-                    Matching Rules:
-                    	1.	Strict Identity: Distinguish between distinct items (e.g., "Iron Block" vs. "Block of Raw Iron" are not the same).
-                        2.	Ambiguity Resolution: If a generic item is requested (e.g., "Bed"), select the White variant (e.g., "White Bed"). 
-                        3.	Normalization: Correct typos, synonyms, and regional spellings (e.g., "Armour" to "Armor") to match the list's naming convention. 
-                        4.	Expert Knowledge: Use internal Minecraft knowledge to map colloquial terms to the specific list entry.
-                    Output Constraint:
-                    	•	If a match is found, return ONLY the exact item name from the list.	
-                        •	If no match exists, return nothing (an empty string).
-                        •	Do not include explanations, formatting, or conversational text.
+                    Act as a Minecraft Crafting Specialist. Match the user's `$item` request against the provided `$items` list using these strict logic gates:
+
+                    1. **Strict Mapping:** Match the exact naming convention in the list (e.g., "Iron Block" vs. "Block of Raw Iron"). Use internal knowledge to resolve synonyms, typos, or regional spellings (e.g., "Armour" → "Armor").
+                    2. **Defaulting:** If a generic item is requested (e.g., "Bed"), map it to the "White" variant.
+                    3. **Recipe Validation:** If the item exists but is created via non-crafting-table methods (Brewing Stand, Furnace, Smithing Table, etc.), output: `NON-CRAFTING RECIPE`.
+                    4. **Constraint:** 
+                       - If a valid crafting table match is found: Return ONLY the exact name from the list.
+                       - If a non-crafting recipe: Return ONLY `NON-CRAFTING RECIPE`.
+                       - If no match or unknown: Return an empty string.
+                       - NO conversational filler, formatting, or explanations.
+                    
                     User Request: $item
+
                 """.trimIndent())
             })
         }
@@ -730,6 +732,12 @@ fun main() {
                                 .filename(fileName)
                                 .threadTs(event.ts)
                                 .initialComment("The recipe is:")
+                        }
+                    } else if (response == "NON-CRAFTING RECIPE") {
+                        ctx.client().chatPostMessage {
+                            it.channel(event.channel)
+                                .text("The recipe you gave was identified by AI to not be for a crafting table, it may be a different block e.g. furnace or brewing stand.")
+                                .threadTs(event.ts)
                         }
                     } else {
                         ctx.client().chatPostMessage {
