@@ -18,9 +18,10 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.net.Inet4Address
 import java.net.InetAddress
+import java.util.Collections
 import java.util.concurrent.TimeUnit
 
-val client = OkHttpClient.Builder()
+val client: OkHttpClient = OkHttpClient.Builder()
     .connectTimeout(10, TimeUnit.SECONDS)
     .readTimeout(30, TimeUnit.SECONDS)
     .dns(object : Dns {
@@ -667,7 +668,7 @@ fun main() {
         "Yellow Terracotta",
         "Yellow Wool"
     )
-    val messagesGettingProcessed = mutableListOf<String>()
+    val messagesGettingProcessed = Collections.synchronizedList(mutableListOf<String>())
 
     val recipeFileName = "Available_Recipes"
     val recipeFile = File.createTempFile(recipeFileName, ".txt")
@@ -697,15 +698,19 @@ fun main() {
     }
 
     app.event(AppMentionEvent::class.java) { payload, ctx ->
-        val event = payload.event
-        val replies = ctx.client().conversationsReplies { it
-            .channel(event.channel)
-            .ts(event.threadTs)
-        }
-        if (replies.isOk || event.ts in messagesGettingProcessed) {
-            ctx.ack()
+        ctx.ack()
+        Thread {
+            val event = payload.event
+            val replies = ctx.client().conversationsReplies {
+                it
+                    .channel(event.channel)
+                    .ts(event.threadTs)
+            }
+            val hasReplies = replies.isOk && (replies.messages?.size ?: 0) > 1
+            if (hasReplies || event.ts in messagesGettingProcessed) {
+                ctx.ack()
             } else {
-            messagesGettingProcessed.add(event.ts)
+                messagesGettingProcessed.add(event.ts)
                 ctx.logger.info("Received a mention in channel ${event.channel} from ${event.user}")
                 ctx.logger.info("Received text is: ${event.text}")
                 var processedText = event.text.replace("<@U0A5X0FV9V4>", "")
@@ -773,7 +778,8 @@ fun main() {
                     }
                 }
             }
-        messagesGettingProcessed.remove(event.ts)
+            messagesGettingProcessed.remove(event.ts)
+        }.start()
         ctx.ack()
         }
 
