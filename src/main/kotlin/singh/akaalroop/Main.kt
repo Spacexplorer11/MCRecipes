@@ -20,6 +20,7 @@ import java.net.Inet4Address
 import java.net.InetAddress
 import java.util.Collections
 import java.util.concurrent.TimeUnit
+import org.apache.commons.text.similarity.LevenshteinDistance
 
 val client: OkHttpClient = OkHttpClient.Builder()
     .connectTimeout(10, TimeUnit.SECONDS)
@@ -31,30 +32,42 @@ val client: OkHttpClient = OkHttpClient.Builder()
     })
     .build()
 
+val levenshtein: LevenshteinDistance = LevenshteinDistance(3)
+
+fun fuzzyMatch(input: String, items: List<String>): String? {
+    return items
+        .filter { levenshtein.apply(it.lowercase(), input.lowercase()) != -1 }
+        .minByOrNull { levenshtein.apply(it.lowercase(), input.lowercase()) }
+}
+
 fun sendAIRequest(apiKey: String, item: String, items: List<String>): String? {
     val url = "https://ai.hackclub.com/proxy/v1/chat/completions"
     val mediaType = "application/json; charset=utf-8".toMediaType()
 
     val jsonBody = JSONObject().apply {
-        put("model", "google/gemini-2.5-flash-lite-preview-09-2025")
+        put("model", "~openai/gpt-mini-latest")
         val messages = JSONArray().apply {
             put(JSONObject().apply {
                 put("role", "user")
                 put("content", """
-                    Act as a Minecraft Crafting Specialist. Match the user's `$item` request against the provided `$items` list using these strict logic gates:
+    You are a Minecraft item name resolver. Your only job is to map a user's input to an exact item name from the provided list.
 
-                    1. **Strict Mapping:** Match the exact naming convention in the list (e.g., "Iron Block" vs. "Block of Raw Iron"). Use internal knowledge to resolve synonyms, typos, or regional spellings (e.g., "Armour" → "Armor").
-                    2. **Defaulting:** If a generic item is requested (e.g., "Bed"), map it to the "White" variant.
-                    3. **Recipe Validation:** If the item exists but is created via non-crafting-table methods (Brewing Stand, Furnace, Smithing Table, etc.), output: `NON-CRAFTING RECIPE`.
-                    4. **Constraint:** 
-                       - If a valid crafting table match is found: Return ONLY the exact name from the list.
-                       - If a non-crafting recipe: Return ONLY `NON-CRAFTING RECIPE`.
-                       - If no match or unknown: Return an empty string.
-                       - NO conversational filler, formatting, or explanations.
-                    
-                    User Request: $item
+    AVAILABLE ITEMS:
+    ${items.joinToString("\n")}
 
-                """.trimIndent())
+    USER INPUT: $item
+
+    RULES (apply in order):
+    1. Search the list for an exact or near-exact match. Resolve common synonyms, typos, and regional spellings (e.g. "Armour" → "Armor", "Spade" → "Shovel", "Workbench" → "Crafting Table").
+    2. If the input is ambiguous and a colour-variant exists (e.g. "Bed", "Wool"), default to the "White" variant.
+    3. If the item exists in Minecraft but is crafted via a non-crafting-table method (Furnace, Smoker, Blast Furnace, Brewing Stand, Smithing Table, Stonecutter, Cartography Table, etc.), output exactly: NON-CRAFTING RECIPE
+    4. If no semantically close match exists in the list, output nothing — an empty string. Do NOT guess or match distantly related items.
+
+    OUTPUT RULES:
+    - Return ONLY the exact string from the list, "NON-CRAFTING RECIPE", or an empty string.
+    - No explanation, punctuation, markdown, or extra text.
+""".trimIndent()
+                )
             })
         }
         put("messages", messages)
@@ -738,16 +751,19 @@ fun main() {
                 } else {
                     ctx.client().chatPostMessage {
                         it.channel(event.channel)
-                            .text("Couldn't find the recipe in my database. Asking AI if there are any typos")
+                            .text("Couldn't find the recipe in my database. Checking for typos")
                             .threadTs(event.ts)
                     }
-                    var response = sendAIRequest(apiKey, processedText, items)
-                    ctx.logger.info("AI responded with $response")
-                    response = response?.replace("Of", "of")
-                    response = response?.replace("And", "and")
+                    var response = fuzzyMatch(processedText, items)
+                    if (response == null) {
+                        response = sendAIRequest(apiKey, processedText, items)
+                        ctx.logger.info("AI responded with $response")
+                        response = response?.replace("Of", "of")
+                        response = response?.replace("And", "and")
+                    }
                     when (response) {
                         in items -> {
-                            ctx.logger.info("After AI usage, $processedText was turned into $response which was found in the items list!")
+                            ctx.logger.info("After AI usage / fuzzy matching, $processedText was turned into $response which was found in the items list!")
                             val index = items.indexOf(response)
                             val fileName = items[index].replace(" ".toRegex(), "_")
                             val file = File("recipe_images/$fileName.png")

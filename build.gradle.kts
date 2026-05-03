@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "singh.akaalroop"
-version = "1.0.6"
+version = "1.0.7"
 
 repositories {
     mavenCentral()
@@ -21,6 +21,7 @@ dependencies {
     implementation("org.slf4j:slf4j-simple:1.7.36")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.json:json:20231013")
+    implementation("org.apache.commons:commons-text:1.12.0")
 }
 
 kotlin {
