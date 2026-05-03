@@ -8,6 +8,7 @@ import com.slack.api.model.event.AppMentionEvent
 import com.slack.api.model.event.MessageChangedEvent
 import com.slack.api.model.event.MessageDeletedEvent
 import com.slack.api.model.event.MessageEvent
+import okhttp3.Dns
 import java.io.File
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -15,9 +16,21 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.Inet4Address
+import java.net.InetAddress
+import java.util.concurrent.TimeUnit
+
+val client = OkHttpClient.Builder()
+    .connectTimeout(10, TimeUnit.SECONDS)
+    .readTimeout(30, TimeUnit.SECONDS)
+    .dns(object : Dns {
+        override fun lookup(hostname: String): List<InetAddress> {
+            return Dns.SYSTEM.lookup(hostname).filterIsInstance<Inet4Address>()
+        }
+    })
+    .build()
 
 fun sendAIRequest(apiKey: String, item: String, items: List<String>): String? {
-    val client = OkHttpClient()
     val url = "https://ai.hackclub.com/proxy/v1/chat/completions"
     val mediaType = "application/json; charset=utf-8".toMediaType()
 
@@ -59,10 +72,14 @@ fun sendAIRequest(apiKey: String, item: String, items: List<String>): String? {
         val responseData = response.body?.string() ?: return null
         val jsonResponse = JSONObject(responseData)
 
-        return jsonResponse.getJSONArray("choices")
-            .getJSONObject(0)
-            .getJSONObject("message")
-            .getString("content")
+        return try {
+            jsonResponse.getJSONArray("choices")
+                .getJSONObject(0)
+                .getJSONObject("message")
+                .getString("content")
+        } catch (e: Exception) {
+            null
+        }
     }
 }
 
@@ -650,6 +667,7 @@ fun main() {
         "Yellow Terracotta",
         "Yellow Wool"
     )
+    val messagesGettingProcessed = mutableListOf<String>()
 
     val recipeFileName = "Available_Recipes"
     val recipeFile = File.createTempFile(recipeFileName, ".txt")
@@ -684,9 +702,10 @@ fun main() {
             .channel(event.channel)
             .ts(event.threadTs)
         }
-        if (replies.isOk) {
+        if (replies.isOk || event.ts in messagesGettingProcessed) {
             ctx.ack()
             } else {
+            messagesGettingProcessed.add(event.ts)
                 ctx.logger.info("Received a mention in channel ${event.channel} from ${event.user}")
                 ctx.logger.info("Received text is: ${event.text}")
                 var processedText = event.text.replace("<@U0A5X0FV9V4>", "")
@@ -721,33 +740,40 @@ fun main() {
                     ctx.logger.info("AI responded with $response")
                     response = response?.replace("Of", "of")
                     response = response?.replace("And", "and")
-                    if (response in items) {
-                        ctx.logger.info("After AI usage, $processedText was turned into $response which was found in the items list!")
-                        val index = items.indexOf(response)
-                        val fileName = items[index].replace(" ".toRegex(), "_")
-                        val file = File("recipe_images/$fileName.png")
-                        app.client.filesUploadV2 { builder ->
-                            builder.channel(event.channel)
-                                .file(file)
-                                .filename(fileName)
-                                .threadTs(event.ts)
-                                .initialComment("The recipe is:")
+                    when (response) {
+                        in items -> {
+                            ctx.logger.info("After AI usage, $processedText was turned into $response which was found in the items list!")
+                            val index = items.indexOf(response)
+                            val fileName = items[index].replace(" ".toRegex(), "_")
+                            val file = File("recipe_images/$fileName.png")
+                            app.client.filesUploadV2 { builder ->
+                                builder.channel(event.channel)
+                                    .file(file)
+                                    .filename(fileName)
+                                    .threadTs(event.ts)
+                                    .initialComment("The recipe is:")
+                            }
                         }
-                    } else if (response == "NON-CRAFTING RECIPE") {
-                        ctx.client().chatPostMessage {
-                            it.channel(event.channel)
-                                .text("The recipe you gave was identified by AI to not be for a crafting table, it may be a different block e.g. furnace or brewing stand.")
-                                .threadTs(event.ts)
+
+                        "NON-CRAFTING RECIPE" -> {
+                            ctx.client().chatPostMessage {
+                                it.channel(event.channel)
+                                    .text("The recipe you gave was identified by AI to not be for a crafting table, it may be a different block e.g. furnace or brewing stand.")
+                                    .threadTs(event.ts)
+                            }
                         }
-                    } else {
-                        ctx.client().chatPostMessage {
-                            it.channel(event.channel)
-                                .text("Even after using AI I couldn't find the recipe you're looking for. If it is a truly valid recipe, please search google. I am sorry. I am pinging my maker <@U08D22QNUVD> to notify him.")
-                                .threadTs(event.ts)
+
+                        else -> {
+                            ctx.client().chatPostMessage {
+                                it.channel(event.channel)
+                                    .text("Even after using AI I couldn't find the recipe you're looking for. If it is a truly valid recipe, please search google. I am sorry. I am pinging my maker <@U08D22QNUVD> to notify him.")
+                                    .threadTs(event.ts)
+                            }
                         }
                     }
                 }
             }
+        messagesGettingProcessed.remove(event.ts)
         ctx.ack()
         }
 
