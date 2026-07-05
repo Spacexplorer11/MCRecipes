@@ -1,5 +1,8 @@
 # MCRecipes
 
+>[!Warning]
+>This project was archived in favour of [MCBot](https://github.com/spacexplorer11/MCBot) as it implements this bot's features, is more reliable and has more features!
+
 This repository contains crafting recipe images (under the [recipe_images](/recipe_images) folder) for all Minecraft java edition recipes that were provided by https://minecraft-api.vercel.app/api/crafting-recipes . Others may have been added however aren't listed. If you cannot find a recipe and it is a valid Minecraft one, please make an issue.   
 A MASSIVE THANK YOU to https://minecraft-api.vercel.app because the images and recipes all come from there! Thank you so much!
 However the main project is a slackbot which gives these images on demand!
